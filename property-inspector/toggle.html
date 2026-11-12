@@ -16,7 +16,7 @@ small{color:#aeb4bf}#status,#save-status{margin:8px 0;color:#aeb4bf}
 <input id="url" placeholder="https://ha.example.com" autocomplete="off">
 <label>장기 액세스 토큰</label>
 <input id="token" type="password" autocomplete="off" placeholder="Home Assistant 장기 토큰">
-<button id="connect">서버 연결</button>
+<button id="connect">서버 연결 / 연결 정보 변경</button>
 <div id="status" role="status">서버 연결 전</div>
 <div id="selection" hidden>
 <div id="selected" hidden>
@@ -77,7 +77,7 @@ function fill(x){
 function requestSettings(){
  $UD.getGlobalSettings();
  $UD.getSettings();
- send("get-status");
+ send("get-config");
 }
 $UD.onConnected(requestSettings);
 $UD.onAdd(msg=>{
@@ -88,7 +88,10 @@ $UD.onDidReceiveSettings(msg=>fill(msg.payload||msg.param||{}));
 $UD.onDidReceiveGlobalSettings(msg=>{const p=msg.payload||msg.param||{};fill({haUrl:p.haUrl||stored.haUrl,token:p.token||stored.token})});
 $UD.onSendToPropertyInspector(msg=>{
  const p=msg.payload||msg.param||{};
- if(p.__type==="connection"){
+ if(p.__type==="config"){
+  fill({haUrl:p.haUrl,token:p.token});
+  if(connected)show("기존 연결 정보 자동 적용 · HA 연결 성공");
+ }else if(p.__type==="connection"){
   connected=!!p.connected;
   $id("status").dataset.connected=String(connected);
   show(connected?(p.count?"HA 연결 성공 · 엔티티 "+p.count+"개 조회":"HA 연결 성공 · 엔티티 조회 중…"):p.error||"서버 연결 전");
