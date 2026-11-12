@@ -1,15 +1,15 @@
 {
   "Author": "SoonCheol",
-  "Name": "HA State Toggle",
-  "Description": "Home Assistant live ON/OFF icons for Ulanzi D200X",
+  "Name": "HA 기기 제어",
+  "Description": "Home Assistant 전등·환풍기 제어 및 상태별 아이콘 자동 변경",
   "Icon": "resources/plugin.svg",
-  "Version": "0.1.0",
+  "Version": "0.2.0",
   "UUID": "com.ulanzi.ulanzistudio.hastatetoggle",
   "Type": "JavaScript",
   "CodePath": "plugin/app.html",
   "Actions": [
     {
-      "Name": "HA State Toggle",
+      "Name": "전등·환풍기 ON/OFF",
       "Icon": "resources/plugin.svg",
       "UUID": "com.ulanzi.ulanzistudio.hastatetoggle.toggle",
       "PropertyInspectorPath": "property-inspector/toggle.html",
@@ -25,7 +25,8 @@
       ],
       "Controllers": [
         "Keypad"
-      ]
+      ],
+      "Tooltip": "Home Assistant 전등 및 환풍기 상태 동기화"
     }
   ],
   "OS": [
@@ -36,5 +37,6 @@
   ],
   "Software": {
     "MinVersion": "3.0.11"
-  }
+  },
+  "Category": "Home Assistant"
 }
