@@ -1,0 +1,40 @@
+{
+  "Author": "SoonCheol",
+  "Name": "HA State Toggle",
+  "Description": "Home Assistant live ON/OFF icons for Ulanzi D200X",
+  "Icon": "resources/plugin.svg",
+  "Version": "0.1.0",
+  "UUID": "com.ulanzi.ulanzistudio.hastatetoggle",
+  "Type": "JavaScript",
+  "CodePath": "plugin/app.html",
+  "Actions": [
+    {
+      "Name": "HA State Toggle",
+      "Icon": "resources/plugin.svg",
+      "UUID": "com.ulanzi.ulanzistudio.hastatetoggle.toggle",
+      "PropertyInspectorPath": "property-inspector/toggle.html",
+      "States": [
+        {
+          "Name": "Off",
+          "Image": "resources/off.svg"
+        },
+        {
+          "Name": "On",
+          "Image": "resources/on.svg"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ]
+    }
+  ],
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Software": {
+    "MinVersion": "3.0.11"
+  }
+}
