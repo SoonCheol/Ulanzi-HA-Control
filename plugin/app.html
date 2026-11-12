@@ -6,10 +6,22 @@ const UUID="com.ulanzi.ulanzistudio.hastatetoggle";
 const keys=new Map(), states=new Map();
 let url="",token="",ws=null,authed=false,attempt=0,retry=null,msgId=1;
 let subscribed=false;let lastError="연결 안 됨";
+let globalLoaded=false, fileLoaded=false, manualConnection=false;
 const log=s=>{try{$UD.logMessage("HA State Toggle: "+s,"info")}catch(_){}};
 function wsAddress(u){return u.replace(/\/+$/,"").replace(/^https:/i,"wss:").replace(/^http:/i,"ws:")+"/api/websocket";}
 function notify(ctx, payload){try{$UD.sendToPropertyInspector(payload,ctx)}catch(_){}}
-function notifyAll(){for(const ctx of keys.keys())notify(ctx,{__type:"connection",connected:authed,error:lastError,count:states.size});}
+function sendConfig(ctx){if(url&&token)notify(ctx,{__type:"config",haUrl:url,token,source:manualConnection?"manual":"stored"});}
+function notifyAll(){for(const ctx of keys.keys()){notify(ctx,{__type:"connection",connected:authed,error:lastError,count:states.size});sendConfig(ctx);}}
+async function readLocalConfig(){
+ if(fileLoaded)return;fileLoaded=true;
+ try{
+  const p=await Utils.readJson(Utils.getPluginPath()+"/config.local.json");
+  if(!p||typeof p!=="object"||!/^https?:\/\/\S+$/.test(p.haUrl||"")||!p.token)return;
+  if(!url||!token){manualConnection=false;configure(p.haUrl,p.token);notifyAll();}
+  log("Optional local configuration loaded");
+ }catch(_){/* The optional file does not have to exist. */}
+}
+function initializeCredentials(){if(!globalLoaded){globalLoaded=true;$UD.getGlobalSettings();}readLocalConfig();}
 function sendEntities(ctx){const items=[];for(const [id,state] of states){const domain=id.split(".")[0];if(["light","switch","fan"].includes(domain))items.push({id,state,domain,name:labels.get(id)||id});}items.sort((a,b)=>a.name.localeCompare(b.name,"ko"));notify(ctx,{__type:"entities",items,connected:authed,error:lastError});}
 const labels=new Map();
 function disconnect(){if(retry)clearTimeout(retry);retry=null; if(ws){let old=ws;ws=null;old.onclose=null;old.close()}authed=false;subscribed=false;}
@@ -83,25 +95,32 @@ function incoming(msg){
  render(ctx);notify(ctx,{__type:"connection",connected:authed,error:lastError,count:states.size});if(authed)sendEntities(ctx);
 }
 $UD.connect(UUID);
-$UD.onConnected(()=>{$UD.getGlobalSettings();});
+$UD.onConnected(()=>{initializeCredentials();});
 $UD.onDidReceiveGlobalSettings(msg=>{
  const p=msg.payload||msg.param||{};
- if(p.haUrl&&p.token)configure(p.haUrl,p.token);
+ if(p.haUrl&&p.token&&!manualConnection){configure(p.haUrl,p.token);notifyAll();}else if(!url||!token)readLocalConfig();
 });
-$UD.onAdd(msg=>incoming(msg));
+$UD.onAdd(msg=>{incoming(msg);initializeCredentials();sendConfig(msg.context);});
 $UD.onSendToPlugin(msg=>{
  const p=msg.payload||msg.param||{};
  const ctx=msg.context;
  if(p.__type==="connect"){
   if(!/^https?:\/\//.test(p.haUrl||"")||!p.token){notify(ctx,{__type:"connection",connected:false,error:"주소와 토큰을 입력하세요"});return}
-  configure(p.haUrl,p.token);
+  manualConnection=true;configure(p.haUrl,p.token);
+  $UD.setGlobalSettings({haUrl:url,token}); // Store once at connect, not only at button save.
   keys.set(ctx,keys.get(ctx)||{});
   notify(ctx,{__type:"connection",connected:authed,error:lastError,count:states.size});
   if(authed)sendEntities(ctx);
   return;
  }
  if(p.__type==="get-entities"){sendEntities(ctx);return}
- if(p.__type==="get-status"){notify(ctx,{__type:"connection",connected:authed,error:lastError,count:states.size});return}
+ if(p.__type==="get-status"||p.__type==="get-config"){
+  initializeCredentials();
+  sendConfig(ctx);
+  notify(ctx,{__type:"connection",connected:authed,error:lastError,count:states.size});
+  if(authed)sendEntities(ctx);
+  return;
+ }
  if(p.__type==="save"){
   if(!authed){notify(ctx,{__type:"connection",connected:false,error:"먼저 서버에 연결하세요"});return}
   if(!states.has(p.entityId)){notify(ctx,{__type:"connection",connected:true,error:"목록에서 엔티티를 선택하세요"});return}
