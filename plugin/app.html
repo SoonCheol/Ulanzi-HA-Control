@@ -1,0 +1,105 @@
+<!doctype html><html><head><meta charset="utf-8">
+<script src="../libs/js/constants.js"></script><script src="../libs/js/eventEmitter.js"></script><script src="../libs/js/timers.js"></script><script src="../libs/js/utils.js"></script><script src="../libs/js/ulanziApi.js"></script>
+</head><body><script>
+"use strict";
+const UUID="com.ulanzi.ulanzistudio.hastatetoggle";
+const keys=new Map(), states=new Map();
+let url="",token="",ws=null,authed=false,attempt=0,retry=null,msgId=1;
+let subscribed=false;
+const log=s=>{try{$UD.logMessage("HA State Toggle: "+s,"info")}catch(_){}};
+function wsAddress(u){return u.replace(/\/+$/,"").replace(/^https:/i,"wss:").replace(/^http:/i,"ws:")+"/api/websocket";}
+function disconnect(){if(retry)clearTimeout(retry);retry=null; if(ws){let old=ws;ws=null;old.onclose=null;old.close()}authed=false;subscribed=false;}
+function configure(u,t){
+ u=String(u||"").trim().replace(/\/+$/,"");t=String(t||"").trim();
+ if(u===url&&t===token)return;
+ disconnect();url=u;token=t;states.clear();renderAll();if(url&&token)connect();
+}
+function connect(){
+ if(!url||!token||ws)return;
+ const socket=new WebSocket(wsAddress(url));ws=socket;
+ socket.onmessage=ev=>{
+  if(ws!==socket)return;let m;try{m=JSON.parse(ev.data)}catch(_){return}
+  if(m.type==="auth_required"){socket.send(JSON.stringify({type:"auth",access_token:token}));return}
+  if(m.type==="auth_invalid"){log("HA authentication rejected");disconnect();renderAll();return}
+  if(m.type==="auth_ok"){
+   authed=true;attempt=0;
+   socket.send(JSON.stringify({id:msgId++,type:"get_states"}));
+   socket.send(JSON.stringify({id:msgId++,type:"subscribe_events",event_type:"state_changed"}));
+   subscribed=true;return;
+  }
+  if(m.type==="result"&&m.success&&Array.isArray(m.result)){
+   for(const s of m.result)states.set(s.entity_id,s.state);
+   renderAll();return;
+  }
+  if(m.type==="event"&&m.event?.event_type==="state_changed"){
+   const d=m.event.data||{};
+   if(d.entity_id){if(d.new_state)states.set(d.entity_id,d.new_state.state);else states.delete(d.entity_id);renderAll();}
+  }
+ };
+ socket.onclose=()=>{if(ws!==socket)return;ws=null;authed=false;renderAll();
+  if(!retry&&url&&token){const delay=Math.min(30000,1000*2**Math.min(attempt++,5));retry=setTimeout(()=>{retry=null;connect()},delay)}
+ };
+ socket.onerror=()=>log("HA WebSocket connection error");
+}
+function renderAll(){for(const context of keys.keys())render(context)}
+function draw(ctx,kind,isOn,known){
+ const color=!known?"#fb7185":isOn?(kind==="fan"?"#31c3dc":"#facc15"):"#8492a6";
+ ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=7;ctx.lineJoin="round";ctx.lineCap="round";
+ if(kind==="fan"){
+  ctx.strokeRect(36,20,72,75);
+  ctx.beginPath();ctx.arc(72,57,30,0,Math.PI*2);ctx.stroke();
+  for(let i=0;i<4;i++){ctx.save();ctx.translate(72,57);ctx.rotate(i*Math.PI/2);ctx.beginPath();ctx.moveTo(0,0);ctx.bezierCurveTo(-5,-25,15,-32,17,-16);ctx.bezierCurveTo(19,-5,8,4,0,0);ctx.fill();ctx.restore()}
+  ctx.beginPath();ctx.arc(72,57,6,0,7);ctx.fill();
+ }else{
+  ctx.beginPath();ctx.arc(72,51,27,Math.PI,0);ctx.bezierCurveTo(105,65,87,71,86,84);ctx.lineTo(58,84);ctx.bezierCurveTo(57,71,39,65,45,51);ctx.stroke();
+  ctx.fillRect(59,91,26,6);ctx.fillRect(63,101,18,6);
+  if(isOn&&known){for(const [x1,y1,x2,y2] of [[72,7,72,15],[30,25,37,31],[114,25,107,31],[31,65,39,65],[113,65,105,65]]){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke()}}
+ }
+}
+function render(context){
+ const k=keys.get(context);if(!k)return;
+ const known=authed&&states.has(k.entityId)&&!["unavailable","unknown"].includes(states.get(k.entityId));
+ const on=known&&states.get(k.entityId)==="on";
+ const canvas=document.createElement("canvas");canvas.width=144;canvas.height=144;
+ const c=canvas.getContext("2d");c.fillStyle="#111827";c.fillRect(0,0,144,144);
+ draw(c,k.kind==="fan"?"fan":"light",on,known);
+ c.fillStyle=known?(on?"#facc15":"#cbd5e1"):"#fb7185";c.font="bold 15px sans-serif";c.textAlign="center";
+ c.fillText(known?(on?"ON":"OFF"):"?",72,120);
+ c.fillStyle="#fff";c.font="12px sans-serif";c.fillText((k.label||k.entityId||"미설정").slice(0,13),72,137);
+ try{$UD.setBaseDataIcon(context,canvas.toDataURL("image/png").split(",")[1],"")}catch(e){log("Render failed")}
+}
+function incoming(msg){
+ const data=msg?.param||{};const ctx=msg.context;
+ if(!ctx)return;
+ const before=keys.get(ctx)||{};
+ const entry={...before,...data};
+ if(entry.entityId)entry.entityId=String(entry.entityId).trim();
+ keys.set(ctx,entry);
+ if(entry.haUrl&&entry.token)configure(entry.haUrl,entry.token);
+ render(ctx);
+}
+$UD.connect(UUID);
+$UD.onConnected(()=>{$UD.getGlobalSettings();});
+$UD.onDidReceiveGlobalSettings(msg=>{
+ const p=msg.payload||msg.param||{};
+ if(p.haUrl&&p.token)configure(p.haUrl,p.token);
+});
+$UD.onAdd(msg=>incoming(msg));
+$UD.onSendToPlugin(msg=>{
+ const p=msg.payload||msg.param||{};
+ if(p.__type==="configure"){
+  incoming({context:msg.context,param:p});
+  $UD.setSettings({...keys.get(msg.context)},msg.context);
+  if(p.haUrl&&p.token)$UD.setGlobalSettings({haUrl:p.haUrl,token:p.token});
+ }
+ if(p.__type==="get-status")$UD.sendToPropertyInspector({__type:"status",connected:authed,count:states.size},msg.context);
+});
+$UD.onRun(msg=>{
+ const k=keys.get(msg.context);if(!k?.entityId)return;
+ if(!authed||!ws||ws.readyState!==1){$UD.showAlert(msg.context);return}
+ const entity=k.entityId;const domain=entity.split(".")[0];
+ if(!["light","switch","fan","input_boolean"].includes(domain)){$UD.showAlert(msg.context);return}
+ ws.send(JSON.stringify({id:msgId++,type:"call_service",domain,service:"toggle",target:{entity_id:entity}}));
+});
+$UD.onClear(msg=>{for(const i of msg.param||[])keys.delete(i.context)});
+</script></body></html>
