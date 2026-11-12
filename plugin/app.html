@@ -49,7 +49,7 @@ function connect(){
   }
   if(m.type==="event"&&m.event?.event_type==="state_changed"){
    const d=m.event.data||{};
-   if(d.entity_id){if(d.new_state){states.set(d.entity_id,d.new_state.state);if(d.new_state.attributes?.friendly_name)labels.set(d.entity_id,d.new_state.attributes.friendly_name)}else{states.delete(d.entity_id);labels.delete(d.entity_id)}renderAll();}
+   if(d.entity_id){if(d.new_state){states.set(d.entity_id,d.new_state.state);if(d.new_state.attributes?.friendly_name)labels.set(d.entity_id,d.new_state.attributes.friendly_name)}else{states.delete(d.entity_id);labels.delete(d.entity_id)}for(const [ctx,k] of keys){if(k.entityId===d.entity_id)render(ctx);}}
   }
  };
  socket.onclose=()=>{if(ws!==socket)return;ws=null;authed=false;lastError="연결 끊김 · 재시도 중";renderAll();notifyAll();
@@ -72,10 +72,21 @@ function draw(ctx,kind,isOn,known){
   if(isOn&&known){for(const [x1,y1,x2,y2] of [[72,7,72,15],[30,25,37,31],[114,25,107,31],[31,65,39,65],[113,65,105,65]]){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke()}}
  }
 }
-function render(context){
+const renderKeys=new Map();
+function render(context,force=false){
  const k=keys.get(context);if(!k)return;
  const known=authed&&states.has(k.entityId)&&!["unavailable","unknown"].includes(states.get(k.entityId));
  const on=known&&states.get(k.entityId)==="on";
+ const kind=k.kind==="fan"?"fan":"light";
+ const signature=[k.entityId||"",k.label||"",kind,known?"known":"unknown",on?"on":"off"].join("|");
+ if(!force&&renderKeys.get(context)===signature)return; // Do not restart GIFs for unrelated HA events.
+ renderKeys.set(context,signature);
+ if(known&&on){
+  try{
+   $UD.setGifPathIcon(context,kind==="fan"?"resources/fan-on.gif":"resources/light-on.gif",k.label||"");
+   return;
+  }catch(e){log("GIF icon unavailable; use PNG fallback")}
+ }
  const canvas=document.createElement("canvas");canvas.width=144;canvas.height=144;
  const c=canvas.getContext("2d");c.fillStyle="#111827";c.fillRect(0,0,144,144);
  draw(c,k.kind==="fan"?"fan":"light",on,known);
@@ -137,5 +148,6 @@ $UD.onRun(msg=>{
  if(!["light","switch","fan","input_boolean"].includes(domain)){$UD.showAlert(msg.context);return}
  ws.send(JSON.stringify({id:msgId++,type:"call_service",domain,service:"toggle",target:{entity_id:entity}}));
 });
-$UD.onClear(msg=>{for(const i of msg.param||[])keys.delete(i.context)});
+$UD.onSetActive&&$UD.onSetActive(msg=>{if(msg.active)render(msg.context,true);});
+$UD.onClear(msg=>{for(const i of msg.param||[]){keys.delete(i.context);renderKeys.delete(i.context)}});
 </script></body></html>
