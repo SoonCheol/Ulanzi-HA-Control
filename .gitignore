@@ -1,0 +1,7 @@
+config.local.json
+**/config.local.json
+*.token
+*.secret
+.env
+.env.*
+!*.example
