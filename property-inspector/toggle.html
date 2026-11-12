@@ -1,0 +1,38 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<script src="../libs/js/constants.js"></script><script src="../libs/js/eventEmitter.js"></script><script src="../libs/js/timers.js"></script><script src="../libs/js/utils.js"></script><script src="../libs/js/ulanziApi.js"></script>
+<style>body{background:#1e1f22;color:#eee;font:13px system-ui;margin:0;padding:12px}label{display:block;margin:12px 0 4px}input,select,button{box-sizing:border-box;width:100%;background:#292c34;color:#fff;border:1px solid #505666;border-radius:5px;padding:8px}button{margin-top:12px;cursor:pointer;background:#2563eb}small{color:#aeb4bf}#status{padding:8px 0;color:#aeb4bf}</style>
+</head><body><div class="uspi-wrapper">
+<label>Home Assistant URL</label><input id="url" placeholder="https://your-home-assistant.example" autocomplete="off">
+<label>장기 액세스 토큰</label><input id="token" type="password" placeholder="HA Long-lived access token" autocomplete="off">
+<small>토큰은 GitHub에 저장하지 않습니다. Studio 플러그인 설정으로 전달됩니다.</small>
+<label>엔티티 ID (예: switch.kitchen_light)</label><input id="entity" placeholder="switch.example">
+<label>표시 이름</label><input id="label" placeholder="거실등1">
+<label>아이콘 종류</label><select id="kind"><option value="light">전등</option><option value="fan">환풍기</option></select>
+<button id="save">연결 및 저장</button><div id="status">설정 대기 중</div>
+</div><script>
+const UUID="com.ulanzi.ulanzistudio.hastatetoggle.toggle";
+let saved={};
+const $id=x=>document.getElementById(x);
+$UD.connect(UUID);
+function fill(o){
+ if(!o)return;
+ saved={...saved,...o};
+ if(saved.haUrl)$id("url").value=saved.haUrl;
+ if(saved.token)$id("token").value=saved.token;
+ if(saved.entityId)$id("entity").value=saved.entityId;
+ if(saved.label)$id("label").value=saved.label;
+ if(saved.kind)$id("kind").value=saved.kind;
+}
+$UD.onAdd(msg=>{fill(msg.param||{});$UD.getGlobalSettings();$UD.getSettings();});
+$UD.onDidReceiveSettings(msg=>fill(msg.payload||msg.param||{}));
+$UD.onDidReceiveGlobalSettings(msg=>{const p=msg.payload||msg.param||{};fill({haUrl:p.haUrl||saved.haUrl,token:p.token||saved.token})});
+$id("save").onclick=()=>{
+ const data={haUrl:$id("url").value.trim(),token:$id("token").value.trim(),entityId:$id("entity").value.trim(),label:$id("label").value.trim(),kind:$id("kind").value,__type:"configure"};
+ if(!/^https?:\/\/[^ ]+$/.test(data.haUrl)||!data.token||!data.entityId||!/^(light|switch|fan|input_boolean)\.[a-z0-9_]+$/.test(data.entityId)){
+  $id("status").textContent="URL, 토큰, 엔티티 ID를 확인하세요";return;
+ }
+ $UD.sendParamFromPlugin(data);
+ $UD.sendToPlugin(data);
+ $id("status").textContent="설정을 전달했습니다. 연결 후 버튼 상태를 확인하세요.";
+};
+</script></body></html>
