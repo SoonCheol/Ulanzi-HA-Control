@@ -1,9 +1,9 @@
 {
   "Author": "SoonCheol",
   "Name": "HA 기기 제어",
-  "Description": "Home Assistant 전등·환풍기 ON 상태 애니메이션 및 OFF 정지 아이콘",
+  "Description": "전등 정지 이미지·환풍기 ON 회전 GIF 및 OFF 정지 아이콘",
   "Icon": "resources/plugin.svg",
-  "Version": "0.3.0",
+  "Version": "0.3.1",
   "UUID": "com.ulanzi.ulanzistudio.hastatetoggle",
   "Type": "JavaScript",
   "CodePath": "plugin/app.html",
