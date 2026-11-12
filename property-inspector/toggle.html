@@ -4,8 +4,11 @@
 body{background:#1e1f22;color:#eee;font:13px system-ui;margin:0;padding:12px}
 label{display:block;margin:11px 0 4px}input,select,button{box-sizing:border-box;width:100%;background:#292c34;color:#fff;border:1px solid #505666;border-radius:5px;padding:8px}
 button{margin-top:12px;cursor:pointer;background:#2563eb}button:disabled{opacity:.45;cursor:not-allowed}
-small{color:#aeb4bf}#status{padding:10px 0;color:#aeb4bf;min-height:22px}
-#selection{display:none;border-top:1px solid #555;margin-top:12px;padding-top:8px}
+small{color:#aeb4bf}#status,#save-status{margin:8px 0;color:#aeb4bf}
+#status[data-connected="true"]{color:#86efac}
+#selection{border-top:1px solid #555;margin-top:12px;padding-top:8px}
+#selected-name,#selected-id{display:block;overflow-wrap:anywhere}
+#change,#cancel{background:#292c34}
 #save{background:#15803d}
 </style></head><body><div class="uspi-wrapper">
 <strong>HA 기기 제어</strong>
@@ -13,46 +16,73 @@ small{color:#aeb4bf}#status{padding:10px 0;color:#aeb4bf;min-height:22px}
 <input id="url" placeholder="https://ha.example.com" autocomplete="off">
 <label>장기 액세스 토큰</label>
 <input id="token" type="password" autocomplete="off" placeholder="Home Assistant 장기 토큰">
-<button id="connect">① 서버 연결</button>
+<button id="connect">서버 연결</button>
 <div id="status" role="status">서버 연결 전</div>
-<div id="selection">
-<label>② 기기 검색 (이름 또는 엔티티 ID)</label>
+<div id="selection" hidden>
+<div id="selected" hidden>
+<strong id="selected-name"></strong><small id="selected-id"></small>
+<button id="change">기기 변경</button>
+</div>
+<div id="picker" hidden>
+<label for="search">기기 검색 (이름 또는 엔티티 ID)</label>
 <input id="search" placeholder="예: 거실등, fan, switch" autocomplete="off">
-<label>기기 선택</label>
+<label for="entity">기기 선택</label>
 <select id="entity" size="6"></select>
-<small>지원: light / switch / fan. 전등과 환풍기가 switch인 경우도 선택 가능합니다.</small>
+<small id="empty" hidden>검색 결과가 없습니다.</small>
+<button id="cancel" hidden>기기 변경 취소</button>
+</div>
+<div id="device-options" hidden>
 <label>표시 이름</label><input id="label" placeholder="예: 거실등1">
 <label>아이콘 종류</label><select id="kind"><option value="light">전등 (ON 노랑)</option><option value="fan">환풍기 (ON 청록)</option></select>
-<button id="save">③ 버튼 설정 저장</button>
+<button id="save">버튼 설정 저장</button>
+<div id="save-status" role="status"></div>
+</div>
 </div></div><script>
 "use strict";
 const $id=x=>document.getElementById(x);
-let stored={},entities=[],connected=false;
-$UD.connect("com.ulanzi.ulanzistudio.hastatetoggle.toggle");
+let stored={},entities=[],connected=false,picking=false,chosenId=null;
 function send(type,other={}){$UD.sendToPlugin({__type:type,...other})}
 function show(message){$id("status").textContent=message}
+function renderSelection(){
+ const id=chosenId??stored.entityId??"";
+ const device=entities.find(e=>e.id===id);
+ $id("selection").hidden=!connected&&!id;
+ $id("selected").hidden=picking||!id;
+ $id("selected-name").textContent=device?.name||(id===stored.entityId?stored.label:"")||id;
+ $id("selected-id").textContent=id;
+ $id("change").disabled=!connected;
+ $id("picker").hidden=!connected||(!picking&&!!id);
+ $id("cancel").hidden=!id;
+ $id("device-options").hidden=picking||!id;
+ $id("save").disabled=!connected||!device;
+}
 function draw(){
- const prev=$id("entity").value;
  const search=$id("search").value.trim().toLocaleLowerCase();
  const items=entities.filter(e=>(e.name+" "+e.id).toLocaleLowerCase().includes(search));
  const select=$id("entity");select.textContent="";
  for(const e of items){const o=document.createElement("option");o.value=e.id;o.textContent=e.name+" ("+e.id+") ["+e.state+"]";select.appendChild(o)}
- const wanted=stored.entityId||prev;
- if(items.some(e=>e.id===wanted))select.value=wanted;
- else if(items.length)select.selectedIndex=0;
+ select.selectedIndex=-1;
+ $id("empty").hidden=!entities.length||!!items.length;
 }
 function fill(x){
  if(!x)return;stored={...stored,...x};
  if(stored.haUrl)$id("url").value=stored.haUrl;
  if(stored.token)$id("token").value=stored.token;
- if(stored.label)$id("label").value=stored.label;
- if(stored.kind)$id("kind").value=stored.kind;
+ if(chosenId===null){
+  if(stored.label)$id("label").value=stored.label;
+  if(stored.kind)$id("kind").value=stored.kind;
+ }
+ renderSelection();
 }
-$UD.onAdd(msg=>{
- fill(msg.param||{});
+function requestSettings(){
  $UD.getGlobalSettings();
  $UD.getSettings();
  send("get-status");
+}
+$UD.onConnected(requestSettings);
+$UD.onAdd(msg=>{
+ fill(msg.param||{});
+ requestSettings();
 });
 $UD.onDidReceiveSettings(msg=>fill(msg.payload||msg.param||{}));
 $UD.onDidReceiveGlobalSettings(msg=>{const p=msg.payload||msg.param||{};fill({haUrl:p.haUrl||stored.haUrl,token:p.token||stored.token})});
@@ -60,31 +90,43 @@ $UD.onSendToPropertyInspector(msg=>{
  const p=msg.payload||msg.param||{};
  if(p.__type==="connection"){
   connected=!!p.connected;
-  show(connected?"연결됨 · 조회한 엔티티 "+p.count+"개":p.error||"서버 연결 전");
-  $id("selection").style.display=connected?"block":"none";
+  $id("status").dataset.connected=String(connected);
+  show(connected?(p.count?"HA 연결 성공 · 엔티티 "+p.count+"개 조회":"HA 연결 성공 · 엔티티 조회 중…"):p.error||"서버 연결 전");
+  if(!connected){entities=[];picking=false;draw()}
+  renderSelection();
   if(connected)send("get-entities");
  }else if(p.__type==="entities"){
-  if(Array.isArray(p.items)){entities=p.items;draw();}
+  if(connected&&p.connected&&Array.isArray(p.items)){entities=p.items;draw();renderSelection()}
  }else if(p.__type==="saved"){
-  show("저장 완료: "+p.entityId);
+  $id("save-status").textContent="버튼 설정을 저장했습니다.";
  }
 });
 $id("connect").onclick=()=>{
  const haUrl=$id("url").value.trim(),token=$id("token").value.trim();
  if(!/^https?:\/\/\S+$/.test(haUrl)||!token){show("서버 주소와 토큰을 입력하세요");return}
- connected=false;$id("selection").style.display="none";show("서버 연결 중…");
+ connected=false;entities=[];picking=false;draw();renderSelection();
+ $id("status").dataset.connected="false";show("서버 연결 중…");
  send("connect",{haUrl,token});
 };
 $id("search").oninput=draw;
+$id("change").onclick=()=>{
+ picking=true;$id("search").value="";draw();renderSelection();$id("search").focus();
+};
+$id("cancel").onclick=()=>{picking=false;renderSelection()};
 $id("entity").onchange=()=>{
  const id=$id("entity").value;
  const e=entities.find(x=>x.id===id);
- if(e&&!$id("label").value.trim())$id("label").value=e.name;
- if(e&&e.domain==="fan")$id("kind").value="fan";
+ if(!e)return;
+ if(id!==(chosenId??stored.entityId)){
+  $id("label").value=e.name;
+  $id("kind").value=e.domain==="fan"?"fan":"light";
+ }
+ chosenId=id;picking=false;$id("save-status").textContent="";renderSelection();
 };
 $id("save").onclick=()=>{
- const entityId=$id("entity").value;
+ const entityId=chosenId??stored.entityId;
  if(!connected||!entities.some(e=>e.id===entityId)){show("먼저 연결하고 기기를 선택하세요");return}
  send("save",{entityId,label:$id("label").value.trim(),kind:$id("kind").value});
 };
+$UD.connect("com.ulanzi.ulanzistudio.hastatetoggle.toggle");
 </script></body></html>
