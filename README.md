@@ -1,4 +1,4 @@
-# Ulanzi HA Control — experimental 0.3.0
+# Ulanzi HA Control — experimental 0.3.1
 
 독립 Ulanzi D200X Home Assistant 기기 제어 플러그인 (Studio 3.4.8 대상).
 
@@ -9,7 +9,8 @@
 ## 기능
 - WebSocket으로 HA 엔티티의 on/off 상태 변경 수신
 - light, switch, fan, input_boolean 토글
-- **ON: 전등 노란 빛 애니메이션 / 환풍기 청록색 날개 회전 GIF** (각각 `resources/light-on.gif`, `resources/fan-on.gif`)
+- **전등: ON 노란색 / OFF 회색 정지 아이콘** (기존 Canvas 방식 복구)
+- **환풍기: ON 청록색 회전 GIF** (`resources/fan-on.gif`)
 - **OFF: 회색 정지 아이콘**, 연결 안 됨: ? 표시
 - ON/OFF 상태가 바뀔 때만 아이콘 갱신해 GIF의 불필요한 재시작 방지
 - 버튼마다 엔티티 ID, 표시명 및 아이콘 형태 설정
@@ -31,7 +32,7 @@ HA Hub의 설정 화면에서 발생한 직접 REST fetch 오류를 피하기 �
 기존 **Home Assistant → 엔티티** 플러그인과 프로필은 수정하지 않습니다.
 
 ## 주의
-**초기 소스 개발판입니다. 수정판 0.3.0의 D200X 및 Studio 3.4.8 GIF 표시·전환 실기 테스트는 아직 하지 못했습니다.** 먼저 빈 버튼 하나에서 시험하세요. 실제 장치 상태 변경 테스트는 사용자 승인 후 진행하세요.
+**초기 소스 개발판입니다. 수정판 0.3.1의 D200X 및 Studio 3.4.8 GIF 표시·전환 실기 테스트는 아직 하지 못했습니다.** 먼저 빈 버튼 하나에서 시험하세요. 실제 장치 상태 변경 테스트는 사용자 승인 후 진행하세요.
 
 ## 연결 정보 저장과 보안
 - 기본: Studio의 **Global Settings**로 HA URL과 토큰을 버튼 전체에서 공유합니다. 저장 시 버튼 개별 설정에는 토큰을 새로 기록하지 않습니다.
@@ -41,9 +42,9 @@ HA Hub의 설정 화면에서 발생한 직접 REST fetch 오류를 피하기 �
 - Windows 자격 증명 관리자/DPAPI 사용은 향후 별도 구현·검증이 필요합니다.
 - 현재 소스에는 개인 HA 주소나 실제 토큰을 넣지 않았습니다.
 
-ON 상태는 플러그인에 포함된 GIF로 표시하며, OFF·오류 상태는 Canvas 정지 이미지로 표시합니다. 사용자가 제작한 PNG/GIF를 UI에서 직접 선택하는 기능은 미구현입니다.
+환풍기 ON 상태에서만 GIF를 표시하며, 전등 ON/OFF 및 환풍기 OFF·오류 상태는 Canvas 정지 이미지로 표시합니다. 사용자가 제작한 PNG/GIF를 UI에서 직접 선택하는 기능은 미구현입니다.
 
-**업데이트 안내:** 기존 플러그인 폴더를 백업하고 Studio를 완전히 종료한 다음, `manifest.json`, `plugin/app.html`, `resources/light-on.gif`, `resources/fan-on.gif`를 반영하세요. `config.local.json`과 기존 버튼 설정은 건드리지 않습니다.
+**업데이트 안내:** 기존 플러그인 폴더를 백업하고 Studio를 완전히 종료한 다음, `manifest.json`, `plugin/app.html`, `resources/fan-on.gif`를 반영하세요. `config.local.json`과 기존 버튼 설정은 건드리지 않습니다.
 
 ## 출처와 라이선스
 - [Ulanzi 공식 Plugin SDK](https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK)
