@@ -81,9 +81,9 @@ function render(context,force=false){
  const signature=[k.entityId||"",k.label||"",kind,known?"known":"unknown",on?"on":"off"].join("|");
  if(!force&&renderKeys.get(context)===signature)return; // Do not restart GIFs for unrelated HA events.
  renderKeys.set(context,signature);
- if(known&&on){
+ if(known&&on&&kind==="fan"){
   try{
-   $UD.setGifPathIcon(context,kind==="fan"?"resources/fan-on.gif":"resources/light-on.gif",k.label||"");
+   $UD.setGifPathIcon(context,"resources/fan-on.gif",k.label||"");
    return;
   }catch(e){log("GIF icon unavailable; use PNG fallback")}
  }
